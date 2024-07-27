@@ -3,6 +3,7 @@
 *.o
 *.persist
 *.persist.old
+build/
 
 doc/html/
 
@@ -13,3 +14,6 @@ doc/html/
 
 #kdevelop
 *.kdev4
+
+#vscode
+.vscode/
