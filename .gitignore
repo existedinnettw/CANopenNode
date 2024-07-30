@@ -4,6 +4,7 @@
 *.persist
 *.persist.old
 build/
+*Presets.json
 
 doc/html/
 
