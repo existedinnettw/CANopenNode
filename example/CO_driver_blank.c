@@ -135,6 +135,11 @@ CO_CANtxBufferInit(CO_CANmodule_t* CANmodule, uint16_t index, uint16_t ident, bo
         buffer = &CANmodule->txArray[index];
 
         /* CAN identifier, DLC and rtr, bit aligned with CAN module transmit buffer, microcontroller specific. */
+#if ((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0
+        /* For CAN FD noOfBytes is data length in bytes (0 to 64), convert it to DLC code. CAN FD frame format (FDF)
+         * and optional bit rate switch (BRS) must also be configured here, microcontroller specific. */
+        noOfBytes = CO_CANfd_lengthToDLC(noOfBytes);
+#endif
         buffer->ident = ((uint32_t)ident & 0x07FFU) | ((uint32_t)(((uint32_t)noOfBytes & 0xFU) << 11U))
                         | ((uint32_t)(rtr ? 0x8000U : 0U));
 
@@ -263,10 +268,11 @@ CO_CANmodule_process(CO_CANmodule_t* CANmodule) {
     }
 }
 
+/* For CAN FD, CO_CANrxMsg_readDLC() must return data length in bytes (0 to 64), not the DLC code. */
 typedef struct {
     uint32_t ident;
     uint8_t DLC;
-    uint8_t data[8];
+    uint8_t data[CO_CAN_DATA_MAX_LEN];
 } CO_CANrxMsg_t;
 
 void

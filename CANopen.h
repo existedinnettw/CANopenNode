@@ -30,6 +30,8 @@
 #include "301/CO_Emergency.h"
 #include "301/CO_SDOserver.h"
 #include "301/CO_SDOclient.h"
+#include "301/CO_USDOserver.h"
+#include "301/CO_USDOclient.h"
 #include "301/CO_SYNC.h"
 #include "301/CO_PDO.h"
 #include "301/CO_TIME.h"
@@ -285,10 +287,25 @@ typedef struct {
 #if (((CO_CONFIG_EM) & (CO_CONFIG_EM_PRODUCER | CO_CONFIG_EM_HISTORY)) != 0) || defined CO_DOXYGEN
     CO_EM_fifo_t* em_fifo; /**< FIFO for emergency object, initialised by @ref CO_EM_init() */
 #endif
-    CO_SDOserver_t* SDOserver; /**< SDO server objects, initialised by @ref CO_SDOserver_init() */
+    CO_SDOserver_t* SDOserver; /**< SDO server objects, initialised by @ref CO_SDOserver_init(). NULL, if USDO server
+                                  is used (CANopen FD). */
 #if defined CO_MULTIPLE_OD || defined CO_DOXYGEN
     uint16_t RX_IDX_SDO_SRV; /**< Start index in CANrx. */
     uint16_t TX_IDX_SDO_SRV; /**< Start index in CANtx. */
+#endif
+#if (((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0) || defined CO_DOXYGEN
+    CO_USDOserver_t* USDOserver; /**< USDO server object (CANopen FD), initialised by @ref CO_USDOserver_init() */
+#if defined CO_MULTIPLE_OD || defined CO_DOXYGEN
+    uint16_t RX_IDX_USDO_SRV; /**< Start index in CANrx. */
+    uint16_t TX_IDX_USDO_SRV; /**< Start index in CANtx. */
+#endif
+#endif
+#if (((CO_CONFIG_USDO)&CO_CONFIG_USDO_CLI_ENABLE) != 0) || defined CO_DOXYGEN
+    CO_USDOclient_t* USDOclient; /**< USDO client object (CANopen FD), initialised by @ref CO_USDOclient_init() */
+#if defined CO_MULTIPLE_OD || defined CO_DOXYGEN
+    uint16_t RX_IDX_USDO_CLI; /**< Start index in CANrx. */
+    uint16_t TX_IDX_USDO_CLI; /**< Start index in CANtx. */
+#endif
 #endif
 #if (((CO_CONFIG_SDO_CLI)&CO_CONFIG_SDO_CLI_ENABLE) != 0) || defined CO_DOXYGEN
     CO_SDOclient_t* SDOclient; /**< SDO client objects, initialised by @ref CO_SDOclient_init() */
@@ -443,7 +460,7 @@ CO_ReturnError_t CO_LSSinit(CO_t* co, CO_LSS_address_t* lssAddress, uint8_t* pen
  * @param OD_statusBits Argument passed to @ref CO_EM_init(). May be NULL.
  * @param NMTcontrol Argument passed to @ref CO_NMT_init().
  * @param firstHBTime_ms Argument passed to @ref CO_NMT_init().
- * @param SDOserverTimeoutTime_ms Argument passed to @ref CO_SDOserver_init().
+ * @param SDOserverTimeoutTime_ms Argument passed to @ref CO_SDOserver_init() or @ref CO_USDOserver_init().
  * @param SDOclientTimeoutTime_ms Default timeout in milliseconds for SDO client, 500 typically. SDO client is
  * configured from CO_GTWA_init().
  * @param SDOclientBlockTransfer If true, block transfer will be set in SDO client by default. SDO client is configured

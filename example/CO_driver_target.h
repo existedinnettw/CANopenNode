@@ -36,6 +36,9 @@ extern "C" {
 #endif
 
 /* Stack configuration override default values. For more information see file CO_config.h. */
+#ifndef CO_CONFIG_CAN_FD
+#define CO_CONFIG_CAN_FD (0)
+#endif
 
 /* Basic definitions. If big endian, CO_SWAP_xx macros must swap bytes. */
 #define CO_LITTLE_ENDIAN
@@ -66,7 +69,7 @@ typedef struct {
 typedef struct {
     uint32_t ident;
     uint8_t DLC;
-    uint8_t data[8];
+    uint8_t data[CO_CAN_DATA_MAX_LEN];
     volatile bool_t bufferFull;
     volatile bool_t syncFlag;
 } CO_CANtx_t;

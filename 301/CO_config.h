@@ -117,6 +117,100 @@ extern "C" {
 /** @} */ /* CO_STACK_CONFIG_COMMON */
 
 /**
+ * @defgroup CO_STACK_CONFIG_CAN_FD CANopen FD
+ * Specified in standard CiA 1301
+ * @{
+ */
+/**
+ * Configuration of CANopen FD (CiA 1301)
+ *
+ * Possible flags, can be ORed:
+ * - CO_CONFIG_CAN_FD_ENABLE - Enable CAN FD frames with up to 64 data bytes. CAN driver must support CAN FD, see @ref
+ *   CO_driver. If disabled (default), classic CAN frames with up to 8 data bytes are used and stack is the same as
+ *   specified by CiA 301.
+ *
+ * If enabled, the following is changed inside the stack:
+ * - @ref CO_CANtx_t data buffer must be @ref CO_CAN_DATA_MAX_LEN bytes long. CO_CANrxMsg_readDLC() returns length of
+ *   the received data in bytes (0 to 64) and CO_CANtxBufferInit() accepts data length in bytes (0 to 64), see
+ *   CO_CANfd_DLCtoLength() and CO_CANfd_lengthToDLC().
+ * - PDO may be up to @ref CO_PDO_MAX_SIZE (default 64) bytes long. TPDO frame length is rounded up to the next valid CAN
+ *   FD length and padded with @ref CO_CAN_FD_PADDING_BYTE.
+ * - Emergency message is transmitted in CANopen FD format, see @ref CO_EM_FD_MSG_LENGTH.
+ * - USDO (universal SDO) can be used instead of SDO, see @ref CO_STACK_CONFIG_USDO.
+ */
+#ifdef CO_DOXYGEN
+#define CO_CONFIG_CAN_FD (0)
+#endif
+#define CO_CONFIG_CAN_FD_ENABLE 0x01
+
+/** Maximum number of data bytes in CAN frame: 64 for CAN FD and 8 for classic CAN. */
+#define CO_CAN_DATA_MAX_LEN ((((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0) ? 64U : 8U)
+
+/** Value of padding bytes, used when CAN FD frame is longer than data, which it contains. */
+#ifdef CO_DOXYGEN
+#define CO_CAN_FD_PADDING_BYTE 0x00U
+#endif
+
+/**
+ * @defgroup CO_STACK_CONFIG_USDO USDO server/client
+ * Universal SDO, specified in standard CiA 1301 (CANopen FD)
+ * @{
+ */
+/**
+ * Configuration of @ref CO_USDO
+ *
+ * USDO requires @ref CO_CONFIG_CAN_FD. USDO uses fixed CAN identifiers 0x600+clientNodeId (request) and
+ * 0x580+serverNodeId (response), so USDO server replaces SDO server (@ref CO_SDOserver) and USDO client replaces SDO
+ * client (@ref CO_SDOclient). They can not be used simultaneously in CANopenNode.
+ *
+ * Possible flags, can be ORed:
+ * - CO_CONFIG_USDO_SRV_ENABLE - Enable USDO server (expedited transfer). Classic SDO server is then disabled.
+ * - CO_CONFIG_USDO_SRV_SEGMENTED - Enable segmented download and upload in USDO server.
+ * - CO_CONFIG_USDO_SRV_BULK - Enable bulk download in USDO server.
+ * - CO_CONFIG_USDO_CLI_ENABLE - Enable USDO client (expedited and segmented transfer).
+ * - #CO_CONFIG_FLAG_CALLBACK_PRE - Enable custom callback after preprocessing received USDO CAN frame. Callback is
+ *   configured by CO_USDOserver_initCallbackPre() or CO_USDOclient_initCallbackPre().
+ * - #CO_CONFIG_FLAG_TIMERNEXT - Enable calculation of timerNext_us variable inside CO_USDOserver_process() and
+ *   CO_USDOclient_process().
+ */
+#ifdef CO_DOXYGEN
+#define CO_CONFIG_USDO                                                                                                 \
+    (CO_CONFIG_USDO_SRV_ENABLE | CO_CONFIG_USDO_SRV_SEGMENTED | CO_CONFIG_USDO_SRV_BULK                                \
+     | CO_CONFIG_GLOBAL_FLAG_CALLBACK_PRE | CO_CONFIG_GLOBAL_FLAG_TIMERNEXT)
+#endif
+#define CO_CONFIG_USDO_SRV_ENABLE    0x01
+#define CO_CONFIG_USDO_SRV_SEGMENTED 0x02
+#define CO_CONFIG_USDO_SRV_BULK      0x04
+#define CO_CONFIG_USDO_CLI_ENABLE    0x10
+
+/**
+ * Size of the internal data buffer for the USDO server. Must be at least 64 bytes. Larger buffer reduces the number of
+ * partial writes into (or reads from) OD variables with large data.
+ */
+#ifdef CO_DOXYGEN
+#define CO_CONFIG_USDO_SRV_BUFFER_SIZE 128
+#endif
+
+/**
+ * Number of CAN frames, which can be received by USDO server, before they are processed by CO_USDOserver_process().
+ * Larger value is necessary for bulk transfer, where segments are not confirmed.
+ */
+#ifdef CO_DOXYGEN
+#define CO_CONFIG_USDO_SRV_RX_FIFO 4
+#endif
+
+/**
+ * Segment processing time for USDO bulk download, in units of 100 µs. It is reported to the USDO client in the bulk
+ * download initiate response and it tells, how long client must wait between two bulk segments. It must be long enough
+ * for CO_USDOserver_process() to process @ref CO_CONFIG_USDO_SRV_RX_FIFO - 1 frames.
+ */
+#ifdef CO_DOXYGEN
+#define CO_CONFIG_USDO_SRV_BULK_TIME 10
+#endif
+/** @} */ /* CO_STACK_CONFIG_USDO */
+/** @} */ /* CO_STACK_CONFIG_CAN_FD */
+
+/**
  * @defgroup CO_STACK_CONFIG_NMT_HB NMT master/slave and HB producer/consumer
  * Specified in standard CiA 301
  * @{

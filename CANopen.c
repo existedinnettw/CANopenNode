@@ -20,6 +20,20 @@
 
 #include "CANopen.h"
 
+/* CANopen FD (CiA 1301): USDO server replaces SDO server and USDO client replaces SDO client, because they use the same
+ * CAN identifiers. Node guarding uses RTR frames, which are not available in CAN FD. */
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0
+#define CO_SDO_SRV_USED 0
+#else
+#define CO_SDO_SRV_USED 1
+#endif
+#if (((CO_CONFIG_USDO)&CO_CONFIG_USDO_CLI_ENABLE) != 0) && (((CO_CONFIG_SDO_CLI)&CO_CONFIG_SDO_CLI_ENABLE) != 0)
+#error USDO client and SDO client can not be used simultaneously, disable CO_CONFIG_SDO_CLI_ENABLE
+#endif
+#if (((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0) && ((CO_CONFIG_NODE_GUARDING) != 0)
+#error Node guarding is not available in CANopen FD
+#endif
+
 /* Get values from CO_config_t or from single default OD.h ********************/
 #ifdef CO_MULTIPLE_OD
 #define CO_GET_CO(obj)       co->obj
@@ -108,6 +122,7 @@
 #define CO_RX_CNT_EM_CONS 0
 #endif
 
+#if CO_SDO_SRV_USED
 #if !defined OD_CNT_SDO_SRV
 #define OD_CNT_SDO_SRV 1
 #define OD_ENTRY_H1200 NULL
@@ -116,6 +131,25 @@
 #endif
 #define CO_RX_CNT_SDO_SRV OD_CNT_SDO_SRV
 #define CO_TX_CNT_SDO_SRV OD_CNT_SDO_SRV
+#else
+#define CO_RX_CNT_SDO_SRV 0
+#define CO_TX_CNT_SDO_SRV 0
+#endif
+
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0
+#define CO_RX_CNT_USDO_SRV 1
+#define CO_TX_CNT_USDO_SRV 1
+#else
+#define CO_RX_CNT_USDO_SRV 0
+#define CO_TX_CNT_USDO_SRV 0
+#endif
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_CLI_ENABLE) != 0
+#define CO_RX_CNT_USDO_CLI 1
+#define CO_TX_CNT_USDO_CLI 1
+#else
+#define CO_RX_CNT_USDO_CLI 0
+#define CO_TX_CNT_USDO_CLI 0
+#endif
 
 #if ((CO_CONFIG_SDO_CLI)&CO_CONFIG_SDO_CLI_ENABLE) != 0
 #if !defined OD_CNT_SDO_CLI
@@ -273,8 +307,10 @@
 #define CO_RX_IDX_SRDO     (CO_RX_IDX_TIME + (uint16_t)CO_RX_CNT_TIME)
 #define CO_RX_IDX_RPDO     (CO_RX_IDX_SRDO + ((uint16_t)CO_RX_CNT_SRDO * 2U))
 #define CO_RX_IDX_SDO_SRV  (CO_RX_IDX_RPDO + (uint16_t)CO_RX_CNT_RPDO)
-#define CO_RX_IDX_SDO_CLI  (CO_RX_IDX_SDO_SRV + (uint16_t)CO_RX_CNT_SDO_SRV)
-#define CO_RX_IDX_HB_CONS  (CO_RX_IDX_SDO_CLI + (uint16_t)CO_RX_CNT_SDO_CLI)
+#define CO_RX_IDX_USDO_SRV (CO_RX_IDX_SDO_SRV + (uint16_t)CO_RX_CNT_SDO_SRV)
+#define CO_RX_IDX_SDO_CLI  (CO_RX_IDX_USDO_SRV + (uint16_t)CO_RX_CNT_USDO_SRV)
+#define CO_RX_IDX_USDO_CLI (CO_RX_IDX_SDO_CLI + (uint16_t)CO_RX_CNT_SDO_CLI)
+#define CO_RX_IDX_HB_CONS  (CO_RX_IDX_USDO_CLI + (uint16_t)CO_RX_CNT_USDO_CLI)
 #define CO_RX_IDX_NG_SLV   (CO_RX_IDX_HB_CONS + (uint16_t)CO_RX_CNT_HB_CONS)
 #define CO_RX_IDX_NG_MST   (CO_RX_IDX_NG_SLV + (uint16_t)CO_RX_CNT_NG_SLV)
 #define CO_RX_IDX_LSS_SLV  (CO_RX_IDX_NG_MST + (uint16_t)CO_RX_CNT_NG_MST)
@@ -289,8 +325,10 @@
 #define CO_TX_IDX_SRDO     (CO_TX_IDX_TIME + (uint16_t)CO_TX_CNT_TIME)
 #define CO_TX_IDX_TPDO     (CO_TX_IDX_SRDO + ((uint16_t)CO_TX_CNT_SRDO * 2U))
 #define CO_TX_IDX_SDO_SRV  (CO_TX_IDX_TPDO + (uint16_t)CO_TX_CNT_TPDO)
-#define CO_TX_IDX_SDO_CLI  (CO_TX_IDX_SDO_SRV + (uint16_t)CO_TX_CNT_SDO_SRV)
-#define CO_TX_IDX_HB_PROD  (CO_TX_IDX_SDO_CLI + (uint16_t)CO_TX_CNT_SDO_CLI)
+#define CO_TX_IDX_USDO_SRV (CO_TX_IDX_SDO_SRV + (uint16_t)CO_TX_CNT_SDO_SRV)
+#define CO_TX_IDX_SDO_CLI  (CO_TX_IDX_USDO_SRV + (uint16_t)CO_TX_CNT_USDO_SRV)
+#define CO_TX_IDX_USDO_CLI (CO_TX_IDX_SDO_CLI + (uint16_t)CO_TX_CNT_SDO_CLI)
+#define CO_TX_IDX_HB_PROD  (CO_TX_IDX_USDO_CLI + (uint16_t)CO_TX_CNT_USDO_CLI)
 #define CO_TX_IDX_NG_SLV   (CO_TX_IDX_HB_PROD + (uint16_t)CO_TX_CNT_HB_PROD)
 #define CO_TX_IDX_NG_MST   (CO_TX_IDX_NG_SLV + (uint16_t)CO_TX_CNT_NG_SLV)
 #define CO_TX_IDX_LSS_SLV  (CO_TX_IDX_NG_MST + (uint16_t)CO_TX_CNT_NG_MST)
@@ -423,11 +461,20 @@ CO_new(CO_config_t* config, uint32_t* heapMemoryUsed) {
         /* SDOserver */
         ON_MULTI_OD(uint8_t RX_CNT_SDO_SRV = 0);
         ON_MULTI_OD(uint8_t TX_CNT_SDO_SRV = 0);
+#if CO_SDO_SRV_USED
         if (CO_GET_CNT(SDO_SRV) > 0U) {
             CO_alloc_break_on_fail(co->SDOserver, CO_GET_CNT(SDO_SRV), sizeof(*co->SDOserver));
             ON_MULTI_OD(RX_CNT_SDO_SRV = config->CNT_SDO_SRV);
             ON_MULTI_OD(TX_CNT_SDO_SRV = config->CNT_SDO_SRV);
         }
+#endif
+
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0
+        CO_alloc_break_on_fail(co->USDOserver, 1U, sizeof(*co->USDOserver));
+#endif
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_CLI_ENABLE) != 0
+        CO_alloc_break_on_fail(co->USDOclient, 1U, sizeof(*co->USDOclient));
+#endif
 
 #if ((CO_CONFIG_SDO_CLI)&CO_CONFIG_SDO_CLI_ENABLE) != 0
         ON_MULTI_OD(uint8_t RX_CNT_SDO_CLI = 0);
@@ -568,9 +615,17 @@ CO_new(CO_config_t* config, uint32_t* heapMemoryUsed) {
 #endif
         co->RX_IDX_SDO_SRV = idxRx;
         idxRx += RX_CNT_SDO_SRV;
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0
+        co->RX_IDX_USDO_SRV = idxRx;
+        idxRx += 1;
+#endif
 #if ((CO_CONFIG_SDO_CLI)&CO_CONFIG_SDO_CLI_ENABLE) != 0
         co->RX_IDX_SDO_CLI = idxRx;
         idxRx += RX_CNT_SDO_CLI;
+#endif
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_CLI_ENABLE) != 0
+        co->RX_IDX_USDO_CLI = idxRx;
+        idxRx += 1;
 #endif
 #if ((CO_CONFIG_HB_CONS)&CO_CONFIG_HB_CONS_ENABLE) != 0
         co->RX_IDX_HB_CONS = idxRx;
@@ -621,9 +676,17 @@ CO_new(CO_config_t* config, uint32_t* heapMemoryUsed) {
 #endif
         co->TX_IDX_SDO_SRV = idxTx;
         idxTx += TX_CNT_SDO_SRV;
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0
+        co->TX_IDX_USDO_SRV = idxTx;
+        idxTx += 1;
+#endif
 #if ((CO_CONFIG_SDO_CLI)&CO_CONFIG_SDO_CLI_ENABLE) != 0
         co->TX_IDX_SDO_CLI = idxTx;
         idxTx += TX_CNT_SDO_CLI;
+#endif
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_CLI_ENABLE) != 0
+        co->TX_IDX_USDO_CLI = idxTx;
+        idxTx += 1;
 #endif
         co->TX_IDX_HB_PROD = idxTx;
         idxTx += TX_CNT_HB_PROD;
@@ -734,6 +797,13 @@ CO_delete(CO_t* co) {
     /* SDOserver */
     CO_free(co->SDOserver);
 
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0
+    CO_free(co->USDOserver);
+#endif
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_CLI_ENABLE) != 0
+    CO_free(co->USDOclient);
+#endif
+
     /* Emergency */
     CO_free(co->em);
 #if ((CO_CONFIG_EM) & (CO_CONFIG_EM_PRODUCER | CO_CONFIG_EM_HISTORY)) != 0
@@ -784,7 +854,15 @@ static CO_EM_t COO_EM;
 #if ((CO_CONFIG_EM) & (CO_CONFIG_EM_PRODUCER | CO_CONFIG_EM_HISTORY)) != 0
 static CO_EM_fifo_t COO_EM_FIFO[CO_GET_CNT(ARR_1003) + 1U];
 #endif
+#if CO_SDO_SRV_USED
 static CO_SDOserver_t COO_SDOserver[OD_CNT_SDO_SRV];
+#endif
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0
+static CO_USDOserver_t COO_USDOserver;
+#endif
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_CLI_ENABLE) != 0
+static CO_USDOclient_t COO_USDOclient;
+#endif
 #if ((CO_CONFIG_SDO_CLI)&CO_CONFIG_SDO_CLI_ENABLE) != 0
 static CO_SDOclient_t COO_SDOclient[OD_CNT_SDO_CLI];
 #endif
@@ -854,7 +932,15 @@ CO_new(CO_config_t* config, uint32_t* heapMemoryUsed) {
 #if ((CO_CONFIG_EM) & (CO_CONFIG_EM_PRODUCER | CO_CONFIG_EM_HISTORY)) != 0
     co->em_fifo = &COO_EM_FIFO[0];
 #endif
+#if CO_SDO_SRV_USED
     co->SDOserver = &COO_SDOserver[0];
+#endif
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0
+    co->USDOserver = &COO_USDOserver;
+#endif
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_CLI_ENABLE) != 0
+    co->USDOclient = &COO_USDOclient;
+#endif
 #if ((CO_CONFIG_SDO_CLI)&CO_CONFIG_SDO_CLI_ENABLE) != 0
     co->SDOclient = &COO_SDOclient[0];
 #endif
@@ -1077,6 +1163,7 @@ CO_CANopenInit(CO_t* co, CO_NMT_t* NMT, CO_EM_t* em, OD_t* od, OD_entry_t* OD_st
 #endif
 
     /* SDOserver */
+#if CO_SDO_SRV_USED
     if (CO_GET_CNT(SDO_SRV) > 0U) {
         OD_entry_t* SDOsrvPar = OD_GET(H1200, OD_H1200_SDO_SERVER_1_PARAM);
         for (uint16_t i = 0; i < CO_GET_CNT(SDO_SRV); i++) {
@@ -1089,6 +1176,23 @@ CO_CANopenInit(CO_t* co, CO_NMT_t* NMT, CO_EM_t* em, OD_t* od, OD_entry_t* OD_st
             SDOsrvPar++;
         }
     }
+#endif
+
+    /* USDO server and client (CANopen FD) */
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0
+    err = CO_USDOserver_init(co->USDOserver, od, nodeId, SDOserverTimeoutTime_ms, co->CANmodule,
+                             CO_GET_CO(RX_IDX_USDO_SRV), co->CANmodule, CO_GET_CO(TX_IDX_USDO_SRV), errInfo);
+    if (err != CO_ERROR_NO) {
+        return err;
+    }
+#endif
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_CLI_ENABLE) != 0
+    err = CO_USDOclient_init(co->USDOclient, nodeId, co->CANmodule, CO_GET_CO(RX_IDX_USDO_CLI), co->CANmodule,
+                             CO_GET_CO(TX_IDX_USDO_CLI));
+    if (err != CO_ERROR_NO) {
+        return err;
+    }
+#endif
 
 #if ((CO_CONFIG_SDO_CLI)&CO_CONFIG_SDO_CLI_ENABLE) != 0
     if (CO_GET_CNT(SDO_CLI) > 0U) {
@@ -1370,9 +1474,16 @@ CO_process(CO_t* co, bool_t enableGateway, uint32_t timeDifference_us, uint32_t*
     NMTisPreOrOperational = ((NMTstate == CO_NMT_PRE_OPERATIONAL) || (NMTstate == CO_NMT_OPERATIONAL));
 
     /* SDOserver */
+#if CO_SDO_SRV_USED
     for (uint8_t i = 0; i < CO_GET_CNT(SDO_SRV); i++) {
         (void)CO_SDOserver_process(&co->SDOserver[i], NMTisPreOrOperational, timeDifference_us, timerNext_us);
     }
+#endif
+
+    /* USDO server */
+#if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0
+    (void)CO_USDOserver_process(co->USDOserver, NMTisPreOrOperational, timeDifference_us, timerNext_us);
+#endif
 
 #if ((CO_CONFIG_HB_CONS)&CO_CONFIG_HB_CONS_ENABLE) != 0
     if (CO_GET_CNT(HB_CONS) == 1U) {

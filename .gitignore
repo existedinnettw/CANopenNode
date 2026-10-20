@@ -13,3 +13,4 @@ doc/html/
 
 #kdevelop
 *.kdev4
+/test/build/

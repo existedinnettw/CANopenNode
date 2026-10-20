@@ -29,6 +29,7 @@ Characteristics
  - [LSS](https://www.can-cia.org/can-knowledge/cia-305-layer-setting-services-lss/) CANopen node-id and bitrate setup, master and slave, LSS fastscan.
  - [CANopen gateway](https://www.can-cia.org/can-knowledge/cia-309-series-accessing-canopen-via-tcp/), CiA309-3 Ascii command interface for NMT master, LSS master and SDO client.
  - [CANopen Safety](https://standards.globalspec.com/std/1284438/en-50325-5), EN 50325-5, CiA304, "PDO like" communication in safety-relevant networks
+ - [CANopen FD](https://www.can-cia.org/can-knowledge/), CiA 1301, optional (`CO_CONFIG_CAN_FD`): CAN FD frames with up to 64 bytes, PDOs up to 64 bytes, USDO server and client (expedited, segmented, bulk download, broadcast) instead of SDO, CANopen FD emergency message. See [CANopen FD](#canopen-fd).
  - [CANopen Conformance Test Tool](https://www.can-cia.org/services/canopen-conformance-test-tool/) passed.
 
 ### Other
@@ -199,6 +200,18 @@ It is not practical to have all device interfaces in a single project. Interface
 
 Some details
 ------------
+### CANopen FD
+CANopen FD (CiA 1301) is enabled by `#define CO_CONFIG_CAN_FD CO_CONFIG_CAN_FD_ENABLE` in `CO_driver_target.h`. If not enabled, CANopenNode is the same as before (CiA 301, classic CAN). If enabled:
+ - CAN driver must support CAN FD. `CO_CANtx_t.data` must be `CO_CAN_DATA_MAX_LEN` (64) bytes long, `CO_CANrxMsg_readDLC()` returns data length in bytes (0..64) and `CO_CANtxBufferInit()` receives data length in bytes, which is always a valid CAN FD length. Use `CO_CANfd_DLCtoLength()` and `CO_CANfd_lengthToDLC()` for conversion. Driver configures FD frame format and optional bit rate switch.
+ - PDO can be up to 64 bytes long (`CO_PDO_MAX_SIZE`), number of mapped objects is configured with `CO_PDO_MAX_MAPPED_ENTRIES` (up to 64). TPDO frame is padded to the next valid CAN FD length with `CO_CAN_FD_PADDING_BYTE`. RPDO accepts frames padded up to the next valid CAN FD length. Bitwise mapping also works with long PDOs.
+ - Emergency message is 20 bytes long, CANopen FD format (CiA specification number, status byte and optional time stamp, see `CO_EM_initCallbackTime()`). Emergency consumer accepts classic and FD emergency messages.
+ - USDO server (`CO_CONFIG_USDO`, enabled by default with CAN FD) replaces the SDO server, because both use the same CAN identifiers. It supports expedited, segmented and bulk download, expedited and segmented upload and broadcast requests. USDO client can be enabled instead of SDO client. Remote (routed) USDO services are not supported.
+ - Node guarding is not available (no RTR frames in CAN FD).
+
+Unit tests for CANopen FD (PDO, USDO, emergency) run on a host computer with a mock CAN driver: `cd test && make`.
+
+Not implemented: remote (routed) USDO, LSS for CANopen FD (CiA 1305), new OD objects of CiA 1301 (e.g. 0x1000 as array for logical devices, error history 0x1031/0x1032). Those must be added to the Object Dictionary by the application, if needed.
+
 ### RTR
 RTR (remote transmission request) is a feature of CAN bus. Usage of RTR is not recommended for CANopen. RTR PDO is not implemented in CANopenNode.
 

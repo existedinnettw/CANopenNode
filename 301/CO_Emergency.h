@@ -249,8 +249,58 @@ typedef struct {
     uint32_t msg;
 #if (((CO_CONFIG_EM)&CO_CONFIG_EM_PRODUCER) != 0) || defined CO_DOXYGEN
     uint32_t info;
+#if (((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0) || defined CO_DOXYGEN
+    uint8_t status; /**< Status byte of CANopen FD emergency message, see @ref CO_EM_FD_STATUS_OCCURRED */
+#endif
 #endif
 } CO_EM_fifo_t;
+#endif
+
+#if (((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0) || defined CO_DOXYGEN
+/**
+ * @defgroup CO_EM_FD CANopen FD emergency message
+ * @{
+ *
+ * If @ref CO_CONFIG_CAN_FD is enabled, emergency message is transmitted in CANopen FD format (CiA 1301), which is 20
+ * bytes long:
+ *
+ * | Byte  | Description                                                                         |
+ * | ----- | ----------------------------------------------------------------------------------- |
+ * | 0     | Logical device number, @ref CO_EM_FD_LOGICAL_DEVICE (0 = not specified)               |
+ * | 1     | Reserved (0)                                                                         |
+ * | 2..3  | CiA specification number, @ref CO_EM_FD_CIA_SPEC (1301 by default)                   |
+ * | 4..5  | Emergency error code, see @ref CO_EM_errorCodes                                      |
+ * | 6     | Error register, OD object 0x1001                                                     |
+ * | 7     | Manufacturer specific: errorBit from @ref CO_errorReport()                           |
+ * | 8..11 | Manufacturer specific: infoCode from @ref CO_errorReport()                           |
+ * | 12    | Status: bits 0..2 priority, bit 3 non-recoverable, bit 4 error occurred, bit 5 multiple |
+ * | 13    | Reserved (0)                                                                         |
+ * | 14..19| TIME_OF_DAY, see @ref CO_EM_initCallbackTime(), zero if not used                     |
+ *
+ * If error is reset with @ref CO_errorReset(), emergency message is sent with error code @ref CO_EMC_NO_ERROR (same as
+ * in CiA 301) and with @ref CO_EM_FD_STATUS_OCCURRED bit cleared in status byte.
+ *
+ * Emergency consumer accepts classic (8 bytes) and CANopen FD (20 bytes) emergency messages.
+ */
+/** Length of CANopen FD emergency message */
+#define CO_EM_FD_MSG_LENGTH 20U
+#ifndef CO_EM_FD_LOGICAL_DEVICE
+/** Logical device number inside CANopen FD emergency message, 0 if not specified. */
+#define CO_EM_FD_LOGICAL_DEVICE 0U
+#endif
+#ifndef CO_EM_FD_CIA_SPEC
+/** CiA specification number inside CANopen FD emergency message, which specifies error code (1301 by default). */
+#define CO_EM_FD_CIA_SPEC 1301U
+#endif
+#ifndef CO_EM_FD_STATUS_PRIORITY
+/** Default priority of the error (0 is highest, 7 lowest) inside status byte of CANopen FD emergency message. */
+#define CO_EM_FD_STATUS_PRIORITY 0U
+#endif
+#define CO_EM_FD_STATUS_PRIORITY_MASK 0x07U /**< Status byte: priority of the error, 0 = highest */
+#define CO_EM_FD_STATUS_NON_RECOVER   0x08U /**< Status byte: error is non-recoverable */
+#define CO_EM_FD_STATUS_OCCURRED      0x10U /**< Status byte: 1 = error occurred, 0 = error removed */
+#define CO_EM_FD_STATUS_MULTIPLE      0x20U /**< Status byte: error occurred multiple times */
+/** @} */ /* CO_EM_FD */
 #endif
 
 /**
@@ -293,6 +343,12 @@ typedef struct {
     OD_extension_t OD_1015_extension; /**< Extension for OD object */
 #endif
 #endif /* (CO_CONFIG_EM) & CO_CONFIG_EM_PRODUCER */
+
+#if (((CO_CONFIG_EM)&CO_CONFIG_EM_PRODUCER) != 0) && (((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0)                 \
+    || defined CO_DOXYGEN
+    void (*pFunctGetTime)(void* object, uint32_t* ms, uint16_t* days); /**< From CO_EM_initCallbackTime() or NULL */
+    void* functGetTimeObject;                                           /**< From CO_EM_initCallbackTime() or NULL */
+#endif
 
 #if (((CO_CONFIG_EM)&CO_CONFIG_EM_HISTORY) != 0) || defined CO_DOXYGEN
     OD_extension_t OD_1003_extension; /**< Extension for OD object */
@@ -376,6 +432,22 @@ CO_ReturnError_t CO_EM_init(CO_EM_t* em, CO_CANmodule_t* CANdevTx, const OD_entr
  * @param pFunctSignal Pointer to the callback function. Not called if NULL.
  */
 void CO_EM_initCallbackPre(CO_EM_t* em, void* object, void (*pFunctSignal)(void* object));
+#endif
+
+#if (((CO_CONFIG_EM)&CO_CONFIG_EM_PRODUCER) != 0) && (((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0)                 \
+    || defined CO_DOXYGEN
+/**
+ * Initialize callback for time stamp of CANopen FD emergency message.
+ *
+ * Callback is called from @ref CO_EM_process() before CANopen FD emergency message is sent. It must return current
+ * TIME_OF_DAY: milliseconds after midnight and number of days since January 1, 1984. If callback is not initialized,
+ * time stamp in emergency message is zero.
+ *
+ * @param em This object.
+ * @param object Pointer to object, which will be passed to pFunctGetTime(). Can be NULL
+ * @param pFunctGetTime Pointer to the callback function. Not called if NULL.
+ */
+void CO_EM_initCallbackTime(CO_EM_t* em, void* object, void (*pFunctGetTime)(void* object, uint32_t* ms, uint16_t* days));
 #endif
 
 #if (((CO_CONFIG_EM)&CO_CONFIG_EM_CONSUMER) != 0) || defined CO_DOXYGEN

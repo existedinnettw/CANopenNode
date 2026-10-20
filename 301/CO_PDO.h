@@ -103,14 +103,20 @@ extern "C" {
  * - Enable the PDO by setting bit-31 to 0 in PDO communication parameter, COB-ID
  */
 
-/** Maximum size of PDO message, 8 for standard CAN */
+/** Maximum size of PDO message, 8 for standard CAN, 64 for CAN FD (see @ref CO_CONFIG_CAN_FD). May be less to preserve
+ * RAM usage, but not more than @ref CO_CAN_DATA_MAX_LEN. */
 #ifndef CO_PDO_MAX_SIZE
-#define CO_PDO_MAX_SIZE 8U
+#define CO_PDO_MAX_SIZE CO_CAN_DATA_MAX_LEN
 #endif
 
-/** Maximum number of entries, which can be mapped to PDO, 8 for standard CAN, may be less to preserve RAM usage */
+/** Maximum number of entries, which can be mapped to PDO, 8 for standard CAN, may be less to preserve RAM usage. For
+ * CAN FD it may be up to 64. */
 #ifndef CO_PDO_MAX_MAPPED_ENTRIES
 #define CO_PDO_MAX_MAPPED_ENTRIES 8U
+#endif
+
+#if (CO_PDO_MAX_SIZE > CO_CAN_DATA_MAX_LEN) || (CO_PDO_MAX_MAPPED_ENTRIES > 64U)
+#error CO_PDO_MAX_SIZE or CO_PDO_MAX_MAPPED_ENTRIES is too large!
 #endif
 
 /** Number of CANopen RPDO objects, which uses default CAN indentifiers. By default first four RPDOs have pre-defined
@@ -130,8 +136,13 @@ extern "C" {
 #endif
 
 #ifndef CO_PDO_OWN_TYPES
-/** Variable of type CO_PDO_size_t contains data length in bytes of PDO */
+#if (CO_PDO_MAX_SIZE > 8U) || defined CO_DOXYGEN
+/** Variable of type CO_PDO_size_t contains data length of PDO in bytes (or in bits, if
+ * CO_CONFIG_PDO_BITWISE_MAPPING is enabled). For CAN FD it must hold up to 512 bits. */
+typedef uint16_t CO_PDO_size_t;
+#else
 typedef uint8_t CO_PDO_size_t;
+#endif
 #endif
 
 /**

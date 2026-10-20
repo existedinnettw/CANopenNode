@@ -22,6 +22,13 @@
 
 #include "301/CO_Emergency.h"
 
+/* Length of emergency message */
+#if ((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0
+#define CO_EM_MSG_LENGTH CO_EM_FD_MSG_LENGTH
+#else
+#define CO_EM_MSG_LENGTH 8U
+#endif
+
 /* verify configuration */
 #if CO_CONFIG_EM_ERR_STATUS_BITS_COUNT < (6U * 8U) || CO_CONFIG_EM_ERR_STATUS_BITS_COUNT > 256U                        \
     || (CO_CONFIG_EM_ERR_STATUS_BITS_COUNT % 8U) != 0
@@ -94,7 +101,7 @@ OD_write_1014(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* 
 
     /* configure emergency message CAN transmission */
     if (newEnabled) {
-        em->CANtxBuff = CO_CANtxBufferInit(em->CANdevTx, em->CANdevTxIdx, newCanId, false, 8U, false);
+        em->CANtxBuff = CO_CANtxBufferInit(em->CANdevTx, em->CANdevTxIdx, newCanId, false, CO_EM_MSG_LENGTH, false);
     }
 
     /* write value to the original location in the Object Dictionary */
@@ -288,6 +295,15 @@ CO_EM_receive(void* object, void* msg) {
             uint16_t errorCode;
             uint32_t infoCode;
 
+#if ((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0
+            if (CO_CANrxMsg_readDLC(msg) >= CO_EM_FD_MSG_LENGTH) {
+                /* CANopen FD emergency message */
+                (void)memcpy((void*)(&errorCode), (const void*)(&data[4]), sizeof(errorCode));
+                (void)memcpy((void*)(&infoCode), (const void*)(&data[8]), sizeof(infoCode));
+                em->pFunctSignalRx(ident, CO_SWAP_16(errorCode), data[6], data[7], CO_SWAP_32(infoCode));
+                return;
+            }
+#endif
             (void)memcpy((void*)(&errorCode), (const void*)(&data[0]), sizeof(errorCode));
             (void)memcpy((void*)(&infoCode), (const void*)(&data[4]), sizeof(infoCode));
             em->pFunctSignalRx(ident, CO_SWAP_16(errorCode), data[2], data[3], CO_SWAP_32(infoCode));
@@ -414,7 +430,7 @@ CO_EM_init(CO_EM_t* em, CO_CANmodule_t* CANdevTx, const OD_entry_t* OD_1001_errR
     /* configure parameters and emergency message CAN transmission */
     em->nodeId = nodeId;
 
-    em->CANtxBuff = CO_CANtxBufferInit(CANdevTx, CANdevTxIdx, producerCanId, false, 8U, false);
+    em->CANtxBuff = CO_CANtxBufferInit(CANdevTx, CANdevTxIdx, producerCanId, false, CO_EM_MSG_LENGTH, false);
 
     if (em->CANtxBuff == NULL) {
         return CO_ERROR_ILLEGAL_ARGUMENT;
@@ -479,6 +495,16 @@ CO_EM_initCallbackPre(CO_EM_t* em, void* object, void (*pFunctSignal)(void* obje
     if (em != NULL) {
         em->functSignalObjectPre = object;
         em->pFunctSignalPre = pFunctSignal;
+    }
+}
+#endif
+
+#if (((CO_CONFIG_EM)&CO_CONFIG_EM_PRODUCER) != 0) && (((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0)
+void
+CO_EM_initCallbackTime(CO_EM_t* em, void* object, void (*pFunctGetTime)(void* object, uint32_t* ms, uint16_t* days)) {
+    if (em != NULL) {
+        em->functGetTimeObject = object;
+        em->pFunctGetTime = pFunctGetTime;
     }
 }
 #endif
@@ -578,7 +604,29 @@ CO_EM_process(CO_EM_t* em, bool_t NMTisPreOrOperational, uint32_t timeDifference
             em->fifo[fifoPpPtr].msg |= (uint32_t)errorRegister << 16;
 
             /* send emergency message */
-            (void)memcpy((void*)em->CANtxBuff->data, (void*)&em->fifo[fifoPpPtr].msg, sizeof(em->CANtxBuff->data));
+#if ((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0
+            uint8_t* emData = em->CANtxBuff->data;
+            uint32_t emMsg = em->fifo[fifoPpPtr].msg;
+            uint16_t emCode = CO_SWAP_16((uint16_t)emMsg); /* stored swapped, see CO_error() */
+            uint32_t timeMs = 0;
+            uint16_t timeDays = 0;
+            if (em->pFunctGetTime != NULL) {
+                em->pFunctGetTime(em->functGetTimeObject, &timeMs, &timeDays);
+            }
+            (void)memset((void*)emData, 0, CO_EM_FD_MSG_LENGTH);
+            emData[0] = (uint8_t)CO_EM_FD_LOGICAL_DEVICE;
+            (void)CO_setUint16(&emData[2], CO_SWAP_16((uint16_t)CO_EM_FD_CIA_SPEC));
+            emData[4] = (uint8_t)emCode; /* error code, little endian */
+            emData[5] = (uint8_t)(emCode >> 8);
+            emData[6] = errorRegister;
+            emData[7] = (uint8_t)(emMsg >> 24); /* errorBit */
+            (void)memcpy((void*)&emData[8], (void*)&em->fifo[fifoPpPtr].info, 4U);
+            emData[12] = em->fifo[fifoPpPtr].status;
+            (void)CO_setUint32(&emData[14], CO_SWAP_32(timeMs));
+            (void)CO_setUint16(&emData[18], CO_SWAP_16(timeDays));
+#else
+            (void)memcpy((void*)em->CANtxBuff->data, (void*)&em->fifo[fifoPpPtr].msg, 8U);
+#endif
             (void)CO_CANsend(em->CANdevTx, em->CANtxBuff);
 
 #if ((CO_CONFIG_EM)&CO_CONFIG_EM_CONSUMER) != 0
@@ -698,6 +746,10 @@ CO_error(CO_EM_t* em, bool_t setError, const uint8_t errorBit, uint16_t errorCod
             em->fifo[fifoWrPtr].msg = errMsg;
 #if ((CO_CONFIG_EM)&CO_CONFIG_EM_PRODUCER) != 0
             em->fifo[fifoWrPtr].info = infoCodeSwapped;
+#if ((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0
+            em->fifo[fifoWrPtr].status = (uint8_t)((CO_EM_FD_STATUS_PRIORITY & CO_EM_FD_STATUS_PRIORITY_MASK)
+                                                   | (setError ? CO_EM_FD_STATUS_OCCURRED : 0U));
+#endif
 #endif
             em->fifoWrPtr = fifoWrPtrNext;
             if (em->fifoCount < (em->fifoSize - 1U)) {

@@ -43,6 +43,12 @@ extern "C" {
 #ifndef CO_CONFIG_GLOBAL_FLAG_OD_DYNAMIC
 #define CO_CONFIG_GLOBAL_FLAG_OD_DYNAMIC CO_CONFIG_FLAG_OD_DYNAMIC
 #endif
+#ifndef CO_CONFIG_CAN_FD
+#define CO_CONFIG_CAN_FD (0)
+#endif
+#ifndef CO_CAN_FD_PADDING_BYTE
+#define CO_CAN_FD_PADDING_BYTE 0x00U
+#endif
 #ifdef CO_DEBUG_COMMON
 #if (CO_CONFIG_DEBUG) & CO_CONFIG_DEBUG_SDO_CLIENT
 #define CO_DEBUG_SDO_CLIENT(msg) CO_DEBUG_COMMON(msg)
@@ -192,7 +198,8 @@ CO_CANrxMsg_readIdent(void* rxMsg) {
  * See also CO_CANrxMsg_readIdent():
  *
  * @param rxMsg Pointer to received CAN frame
- * @return data length in bytes (0 to 8)
+ * @return data length in bytes (0 to 8). If @ref CO_CONFIG_CAN_FD is enabled, data length in bytes from 0 to 64 is
+ * returned (not DLC code), see CO_CANfd_DLCtoLength().
  */
 static inline uint8_t
 CO_CANrxMsg_readDLC(void* rxMsg) {
@@ -255,7 +262,7 @@ typedef struct {
 typedef struct {
     uint32_t ident;             /**< CAN identifier as aligned in CAN module */
     uint8_t DLC;                /**< Length of CAN frame */
-    uint8_t data[8];            /**< 8 data bytes */
+    uint8_t data[CO_CAN_DATA_MAX_LEN]; /**< 8 data bytes or 64 data bytes, if @ref CO_CONFIG_CAN_FD is enabled */
     volatile bool_t bufferFull; /**< True if previous frame is still in the buffer */
     volatile bool_t syncFlag;   /**< Synchronous PDO frames has this flag set. It prevents them to be sent outside the
                                    synchronous window */
@@ -549,11 +556,13 @@ CO_ReturnError_t CO_CANrxBufferInit(CO_CANmodule_t* CANmodule, uint16_t index, u
  * @param index Index of the specific buffer in _txArray_.
  * @param ident 11-bit standard CAN Identifier.
  * @param rtr If true, 'Remote Transmit Request' CAN frames will be transmitted.
- * @param noOfBytes Length of CAN frame in bytes (0 to 8 bytes).
+ * @param noOfBytes Length of CAN frame in bytes (0 to 8 bytes). If @ref CO_CONFIG_CAN_FD is enabled, then length is
+ * from 0 to 64 bytes and it is always one of the valid CAN FD frame lengths. Driver converts it into DLC code with
+ * CO_CANfd_lengthToDLC().
  * @param syncFlag This flag bit is used for synchronous TPDO messages. If it is set, CAN frame will not be sent, if
  * current time is outside synchronous window.
  *
- * @return Pointer to transmit CAN frame buffer. 8 bytes data array inside buffer should be written, before
+ * @return Pointer to transmit CAN frame buffer. 8 (or 64) bytes data array inside buffer should be written, before
  * CO_CANsend() function is called. Zero is returned in case of wrong arguments.
  */
 CO_CANtx_t* CO_CANtxBufferInit(CO_CANmodule_t* CANmodule, uint16_t index, uint16_t ident, bool_t rtr, uint8_t noOfBytes,
@@ -594,6 +603,65 @@ void CO_CANclearPendingSyncPDOs(CO_CANmodule_t* CANmodule);
  * @param CANmodule This object.
  */
 void CO_CANmodule_process(CO_CANmodule_t* CANmodule);
+
+/**
+ * Convert CAN FD Data Length Code into data length in bytes
+ *
+ * Valid CAN FD data lengths are: 0 to 8, 12, 16, 20, 24, 32, 48 and 64 bytes.
+ *
+ * @param DLC Data Length Code, 0 to 15.
+ *
+ * @return Data length in bytes, from 0 to 64.
+ */
+static inline uint8_t
+CO_CANfd_DLCtoLength(uint8_t DLC) {
+    static const uint8_t lengths[16] = {0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U, 12U, 16U, 20U, 24U, 32U, 48U, 64U};
+    return lengths[DLC & 0x0FU];
+}
+
+/**
+ * Convert data length in bytes into CAN FD Data Length Code
+ *
+ * @param length Data length in bytes. If it is not one of the valid CAN FD lengths, it is rounded up to the next valid
+ * length. Length larger than 64 bytes is limited to 64.
+ *
+ * @return Data Length Code, from 0 to 15.
+ */
+static inline uint8_t
+CO_CANfd_lengthToDLC(uint8_t length) {
+    uint8_t DLC;
+    if (length <= 8U) {
+        DLC = length;
+    } else if (length <= 24U) {
+        DLC = (uint8_t)(((uint8_t)(length + 3U) >> 2) + 6U); /* 12->9, 16->10, 20->11, 24->12 */
+    } else if (length <= 32U) {
+        DLC = 13U;
+    } else if (length <= 48U) {
+        DLC = 14U;
+    } else {
+        DLC = 15U;
+    }
+    return DLC;
+}
+
+/**
+ * Get the length of CAN frame, which can hold specified number of data bytes
+ *
+ * For classic CAN length is returned unchanged (and limited to 8). For CAN FD length is rounded up to the next valid
+ * CAN FD frame length. If frame is longer than data, remaining bytes should be filled with @ref CO_CAN_FD_PADDING_BYTE.
+ *
+ * @param length Number of data bytes.
+ *
+ * @return Length of CAN frame in bytes.
+ */
+static inline uint8_t
+CO_CANframeLength(uint8_t length) {
+#if ((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0
+    return CO_CANfd_DLCtoLength(CO_CANfd_lengthToDLC(length));
+#else
+    return (length <= 8U) ? length : 8U;
+#endif
+}
 
 /**
  * Get uint8_t value from memory buffer
