@@ -74,6 +74,12 @@ CO_USDOserver_receive(void* object, void* msg) {
     uint8_t DLC = CO_CANrxMsg_readDLC(msg);
     const uint8_t* data = CO_CANrxMsg_readData(msg);
 
+    /* Own frames are not received, so other device uses the same node-ID */
+    if (clientNodeId == USDO->nodeId) {
+        USDO->nodeIdCollision = true;
+        return;
+    }
+
     /* frame must be addressed to this node or broadcast */
     if ((clientNodeId == 0U) || (DLC < 3U) || ((data[0] != USDO->nodeId) && (data[0] != 0U))) {
         return;
@@ -105,8 +111,9 @@ CO_USDOserver_receive(void* object, void* msg) {
 }
 
 CO_ReturnError_t
-CO_USDOserver_init(CO_USDOserver_t* USDO, OD_t* OD, uint8_t nodeId, uint16_t timeoutTime_ms, CO_CANmodule_t* CANdevRx,
-                   uint16_t CANdevRxIdx, CO_CANmodule_t* CANdevTx, uint16_t CANdevTxIdx, uint32_t* errInfo) {
+CO_USDOserver_init(CO_USDOserver_t* USDO, OD_t* OD, CO_EM_t* em, uint8_t nodeId, uint16_t timeoutTime_ms,
+                   CO_CANmodule_t* CANdevRx, uint16_t CANdevRxIdx, CO_CANmodule_t* CANdevTx, uint16_t CANdevTxIdx,
+                   uint32_t* errInfo) {
     (void)errInfo;
 
     /* verify arguments */
@@ -118,6 +125,7 @@ CO_USDOserver_init(CO_USDOserver_t* USDO, OD_t* OD, uint8_t nodeId, uint16_t tim
     (void)memset((void*)USDO, 0, sizeof(CO_USDOserver_t));
 
     USDO->OD = OD;
+    USDO->em = em;
     USDO->nodeId = nodeId;
     USDO->state = CO_USDO_ST_IDLE;
     USDO->timeoutTime_us = (uint32_t)timeoutTime_ms * 1000U;
@@ -828,6 +836,11 @@ CO_USDOserver_process(CO_USDOserver_t* USDO, bool_t NMTisPreOrOperational, uint3
 
     if (USDO == NULL) {
         return false;
+    }
+
+    if (USDO->nodeIdCollision) {
+        USDO->nodeIdCollision = false;
+        CO_errorReport(USDO->em, CO_EM_USDO_NODE_ID_COLLISION, CO_EMC_USDO_COLLISION, USDO->nodeId);
     }
 
     if (!NMTisPreOrOperational) {

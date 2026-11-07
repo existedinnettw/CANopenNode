@@ -96,7 +96,7 @@ main(void) {
 
     CO_CANmodule_init(&modSrv, NULL, rxSrv, 4, txSrv, 4, 500);
     CO_CANmodule_init(&modCli, NULL, rxCli, 4, txCli, 4, 500);
-    CHECK(CO_USDOserver_init(&srv, &od, SRV_ID, 1000, &modSrv, 0, &modSrv, 0, &errInfo) == CO_ERROR_NO);
+    CHECK(CO_USDOserver_init(&srv, &od, NULL, SRV_ID, 1000, &modSrv, 0, &modSrv, 0, &errInfo) == CO_ERROR_NO);
     CHECK(CO_USDOclient_init(&cli, CLI_ID, &modCli, 0, &modCli, 0) == CO_ERROR_NO);
     test_busEnabled = true;
 
@@ -265,6 +265,22 @@ main(void) {
     for (int i = 0; i < f->len; i++) printf(" %02X", f->data[i]);
     printf("\n");
     CHECK(f->len == 20 && f->data[4] == 0x00 && f->data[5] == 0x00 && f->data[6] == 0 && f->data[12] == 0);
+
+    printf("-- USDO node-ID collision\n");
+    CHECK(CO_USDOserver_init(&srv, &od, &em, SRV_ID, 1000, &modSrv, 0, &modSrv, 0, &errInfo) == CO_ERROR_NO);
+    /* request from other device with the same node-ID is ignored and reported */
+    uint8_t r7[8] = {SRV_ID, 0x11, 1, 0, 0x00, 0x20};
+    CHECK(inject(SRV_ID, r7, 6) == NULL);
+    CHECK(CO_isError(&em, CO_EM_USDO_NODE_ID_COLLISION));
+    before = test_txCount;
+    CO_EM_process(&em, true, 1000, NULL);
+    CHECK(test_txCount == before + 1);
+    f = &test_txLog[test_txCount - 1];
+    CHECK(f->ident == 0x85 && f->data[4] == 0x60 && f->data[5] == 0x81 && f->data[7] == CO_EM_USDO_NODE_ID_COLLISION
+          && f->data[8] == SRV_ID);
+    /* other clients are still served */
+    f = inject(CLI_ID, r7, 6);
+    CHECK(f && f->ident == 0x585 && f->data[0] == CLI_ID && f->data[1] == 0x31);
 
     printf("%s: %d failures\n", test_failures ? "FAILED" : "PASSED", test_failures);
     return test_failures != 0;

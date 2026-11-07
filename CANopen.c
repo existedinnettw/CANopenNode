@@ -1180,7 +1180,7 @@ CO_CANopenInit(CO_t* co, CO_NMT_t* NMT, CO_EM_t* em, OD_t* od, OD_entry_t* OD_st
 
     /* USDO server and client (CANopen FD) */
 #if ((CO_CONFIG_USDO)&CO_CONFIG_USDO_SRV_ENABLE) != 0
-    err = CO_USDOserver_init(co->USDOserver, od, nodeId, SDOserverTimeoutTime_ms, co->CANmodule,
+    err = CO_USDOserver_init(co->USDOserver, od, em, nodeId, SDOserverTimeoutTime_ms, co->CANmodule,
                              CO_GET_CO(RX_IDX_USDO_SRV), co->CANmodule, CO_GET_CO(TX_IDX_USDO_SRV), errInfo);
     if (err != CO_ERROR_NO) {
         return err;

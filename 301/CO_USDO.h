@@ -131,6 +131,7 @@ typedef enum {
     CO_USDO_AB_ROUTING = 0x19U,        /**< 0x19, Routing general error */
     CO_USDO_AB_ROUTING_NET = 0x1AU,    /**< 0x1A, Routing: destination network not reachable */
     CO_USDO_AB_ROUTING_NODE = 0x1BU,   /**< 0x1B, Routing: destination node not reachable */
+    CO_USDO_AB_NODE_UNKNOWN = 0x1DU,   /**< 0x1D, USDO node unknown */
     CO_USDO_AB_DLC = 0x1EU,            /**< 0x1E, Unexpected data length of the CAN frame */
     CO_USDO_AB_SESSION = 0x21U,        /**< 0x21, Session-ID wrong or unknown */
     CO_USDO_AB_UNSUPP_ACCESS = 0x30U,  /**< 0x30, Unsupported access to an object */

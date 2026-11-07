@@ -28,6 +28,13 @@
 #error CO_CONFIG_HB_CONS_CALLBACK_CHANGE and CO_CONFIG_HB_CONS_CALLBACK_MULTI cannot be set simultaneously!
 #endif
 
+/* Emergency error code for heartbeat event. CANopen FD (CiA 1301) specifies error code 0x8F00 + node-ID. */
+#if ((CO_CONFIG_CAN_FD)&CO_CONFIG_CAN_FD_ENABLE) != 0
+#define CO_HB_EMC(nodeId) ((uint16_t)CO_EMC_HEARTBEAT_NODE + (nodeId))
+#else
+#define CO_HB_EMC(nodeId) CO_EMC_HEARTBEAT
+#endif
+
 /*
  * Read received frame from CAN module.
  *
@@ -328,7 +335,8 @@ CO_HBconsumer_process(CO_HBconsumer_t* HBcons, bool_t NMTisPreOrOperational, uin
                     }
 #endif
                     if (monitoredNode->HBstate == CO_HBconsumer_ACTIVE) {
-                        CO_errorReport(HBcons->em, CO_EM_HB_CONSUMER_REMOTE_RESET, CO_EMC_HEARTBEAT, i);
+                        CO_errorReport(HBcons->em, CO_EM_HB_CONSUMER_REMOTE_RESET, CO_HB_EMC(monitoredNode->nodeId),
+                                       i);
                     }
                     monitoredNode->HBstate = CO_HBconsumer_UNKNOWN;
 
@@ -361,7 +369,7 @@ CO_HBconsumer_process(CO_HBconsumer_t* HBcons, bool_t NMTisPreOrOperational, uin
                                                            monitoredNode->functSignalObjectTimeout);
                     }
 #endif
-                    CO_errorReport(HBcons->em, CO_EM_HEARTBEAT_CONSUMER, CO_EMC_HEARTBEAT, i);
+                    CO_errorReport(HBcons->em, CO_EM_HEARTBEAT_CONSUMER, CO_HB_EMC(monitoredNode->nodeId), i);
                     monitoredNode->NMTstate = CO_NMT_UNKNOWN;
                     monitoredNode->HBstate = CO_HBconsumer_TIMEOUT;
                 }

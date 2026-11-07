@@ -20,6 +20,7 @@
 #define CO_USDO_SERVER_H
 
 #include "301/CO_USDO.h"
+#include "301/CO_Emergency.h"
 
 /* default configuration, see CO_config.h */
 #ifndef CO_CONFIG_USDO_SRV_BUFFER_SIZE
@@ -64,6 +65,9 @@ extern "C" {
  * another client during transfer is aborted with @ref CO_USDO_AB_BUSY. Received CAN frames are stored into a small
  * fifo (@ref CO_CONFIG_USDO_SRV_RX_FIFO) and processed by CO_USDOserver_process().
  *
+ * Request with CAN-ID 0x600 + own node-ID is sent by another device with the same node-ID. Such request is ignored
+ * and emergency @ref CO_EMC_USDO_COLLISION is reported with @ref CO_EM_USDO_NODE_ID_COLLISION.
+ *
  * Data type in the upload response is determined from the attributes and length of the OD variable: @ref ODA_STR
  * gives VISIBLE_STRING, multi-byte variables give UNSIGNED16/24/32/64, one byte variables UNSIGNED8, other OCTET_STRING
  * or DOMAIN. Application may specify exact data types with CO_USDOserver_initCallbackDataType(). Data type in the
@@ -88,6 +92,7 @@ typedef struct {
     uint16_t CANdevTxIdx;                                /**< From CO_USDOserver_init() */
     CO_CANtx_t* CANtxBuff;                               /**< CAN transmit buffer inside CANdevTx */
     OD_t* OD;                                            /**< From CO_USDOserver_init() */
+    CO_EM_t* em;                                         /**< From CO_USDOserver_init() */
     uint8_t nodeId;                                      /**< From CO_USDOserver_init() */
     CO_USDO_state_t state;                               /**< Internal state of the USDO server */
     OD_IO_t OD_IO;                                       /**< Object dictionary interface for current object. */
@@ -103,6 +108,7 @@ typedef struct {
     uint8_t CANrxWr;                                     /**< Fifo write index, used by receive function */
     uint8_t CANrxRd;                                     /**< Fifo read index, used by processing function */
     volatile bool_t CANrxOverflow;                       /**< Set if received frame was lost because of full fifo */
+    volatile bool_t nodeIdCollision;                     /**< Set if request with own node-ID was received */
     uint32_t timeoutTime_us;                             /**< Maximum time between frames inside segmented transfer */
     uint32_t timeoutTimer;                               /**< Timeout timer for USDO communication */
     OD_size_t sizeInd;  /**< Size of data indicated by client (download) or server (upload), 0 if unknown */
@@ -127,6 +133,7 @@ typedef struct {
  *
  * @param USDO This object will be initialized.
  * @param OD Object Dictionary.
+ * @param em Emergency object, used for node-ID collision report. May be NULL.
  * @param nodeId CANopen Node ID of this device.
  * @param timeoutTime_ms Timeout time for segmented transfer in milliseconds.
  * @param CANdevRx CAN device for USDO server reception.
@@ -137,9 +144,9 @@ typedef struct {
  *
  * @return #CO_ReturnError_t: CO_ERROR_NO or CO_ERROR_ILLEGAL_ARGUMENT.
  */
-CO_ReturnError_t CO_USDOserver_init(CO_USDOserver_t* USDO, OD_t* OD, uint8_t nodeId, uint16_t timeoutTime_ms,
-                                    CO_CANmodule_t* CANdevRx, uint16_t CANdevRxIdx, CO_CANmodule_t* CANdevTx,
-                                    uint16_t CANdevTxIdx, uint32_t* errInfo);
+CO_ReturnError_t CO_USDOserver_init(CO_USDOserver_t* USDO, OD_t* OD, CO_EM_t* em, uint8_t nodeId,
+                                    uint16_t timeoutTime_ms, CO_CANmodule_t* CANdevRx, uint16_t CANdevRxIdx,
+                                    CO_CANmodule_t* CANdevTx, uint16_t CANdevTxIdx, uint32_t* errInfo);
 
 #if (((CO_CONFIG_USDO)&CO_CONFIG_FLAG_CALLBACK_PRE) != 0) || defined CO_DOXYGEN
 /**

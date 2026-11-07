@@ -141,13 +141,15 @@ extern "C" {
 #define CO_EMC_HEARTBEAT                0x8130U /**< 0x8130 Life Guard Error or Heartbeat Error */
 #define CO_EMC_BUS_OFF_RECOVERED        0x8140U /**< 0x8140 recovered from bus off */
 #define CO_EMC_CAN_ID_COLLISION         0x8150U /**< 0x8150 CAN-ID collision */
+#define CO_EMC_USDO_COLLISION           0x8160U /**< 0x8160 USDO client or server node-ID collision (CANopen FD) */
 #define CO_EMC_PROTOCOL_ERROR           0x8200U /**< 0x82xx Protocol Error */
 #define CO_EMC_PDO_LENGTH               0x8210U /**< 0x8210 PDO not processed due to length error */
 #define CO_EMC_PDO_LENGTH_EXC           0x8220U /**< 0x8220 PDO length exceeded */
 #define CO_EMC_DAM_MPDO                 0x8230U /**< 0x8230 DAM MPDO not processed destination object not available */
 #define CO_EMC_SYNC_DATA_LENGTH         0x8240U /**< 0x8240 Unexpected SYNC data length */
 #define CO_EMC_RPDO_TIMEOUT             0x8250U /**< 0x8250 RPDO timeout */
-#define CO_EMC_EXTERNAL_ERROR           0x9000U /**< 0x90xx External Error */
+#define CO_EMC_HEARTBEAT_NODE           0x8F00U /**< 0x8Fxx Heartbeat event caused by node-ID xx (CANopen FD) */
+#define CO_EMC_EXTERNAL_ERROR          0x9000U /**< 0x90xx External Error */
 #define CO_EMC_ADDITIONAL_FUNC          0xF000U /**< 0xF0xx Additional Functions */
 #define CO_EMC_DEVICE_SPECIFIC          0xFF00U /**< 0xFFxx Device specific */
 
@@ -209,7 +211,7 @@ extern "C" {
 #define CO_EM_HEARTBEAT_CONSUMER        0x1BU /**< 0x1B communication critical Heartbeat consumer timeout */
 #define CO_EM_HB_CONSUMER_REMOTE_RESET  0x1CU /**< 0x1C comm. critical Heartbeat consumer detected remote node reset */
 #define CO_EM_SRDO_CONFIGURATION        0x1DU /**< 0x1D communication critical Error in SRDO configuration parameters */
-#define CO_EM_1E_unused                 0x1EU /**< 0x1E communication critical (unused) */
+#define CO_EM_USDO_NODE_ID_COLLISION    0x1EU /**< 0x1E communication critical USDO request with own node-ID received */
 #define CO_EM_1F_unused                 0x1FU /**< 0x1F communication critical (unused) */
 
 #define CO_EM_EMERGENCY_BUFFER_FULL     0x20U /**< 0x20 generic info Emergency buffer is full or message wasn't sent */

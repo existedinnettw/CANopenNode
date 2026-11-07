@@ -137,6 +137,15 @@ extern "C" {
  *   FD length and padded with @ref CO_CAN_FD_PADDING_BYTE.
  * - Emergency message is transmitted in CANopen FD format, see @ref CO_EM_FD_MSG_LENGTH.
  * - USDO (universal SDO) can be used instead of SDO, see @ref CO_STACK_CONFIG_USDO.
+ * - Heartbeat consumer reports emergency error code 0x8F00 + node-ID instead of @ref CO_EMC_HEARTBEAT.
+ * - Node guarding is not available, because CAN FD has no remote frames.
+ *
+ * Object Dictionary of CANopen FD device differs from CiA 301 and must be prepared by the application:
+ * - 0x1000 Device type is an array: sub-index 0 is the number of logical devices, sub-index 1..8 device type of the
+ *   logical device.
+ * - 0x1003 Pre-defined error field is replaced by 0x1031 Active error history and 0x1032 Active error list. They are not
+ *   implemented by the stack, @ref CO_CONFIG_EM_HISTORY still uses 0x1003.
+ * - 0x1200 to 0x12FF (SDO parameters) are reserved, USDO has fixed CAN identifiers.
  */
 #ifdef CO_DOXYGEN
 #define CO_CONFIG_CAN_FD (0)
